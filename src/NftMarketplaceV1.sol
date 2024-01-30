@@ -18,11 +18,15 @@ interface IERC721Receiver {
     ) external returns (bytes4);
 }
 
-/**
- * @title NFT Marketplace Contract with Upgradeable Proxy
- * @dev A decentralized marketplace contract for buying and selling NFTs, 
- * with support for upgradeable functionality using a proxy.
- */
+ /**
+  * @title NFT Marketplace.
+  * - Users can:
+  * Creates sell and buy offers.
+  * Accepts sell and buy offer.
+  * Cancels sell and buy offers creted.
+  * @dev A decentralized marketplace contract for buying and selling NFTs, 
+  * Contract with Upgradeable Proxy with support for upgradeable functionality using a proxy.
+  */
 contract NftMarketplaceV1 is UUPSUpgradeable {
     
                 
@@ -93,14 +97,17 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     ///////////////////////////////////////////////////////////    
 
     /** 
-    * @notice Creates a sell order for a specific NFT.
-    * @param _nftAddress The address of the NFT contract.
-    * @param _tokenId The ID of the NFT token to be listed for sale.
-    * @param _price The price at which the NFT is listed for sale.
-    * @param _deadline The deadline for accepting the offer.     
-    * @dev Being mindful of the bit packing in uint variables like 
-    * `_tokenId`, `_price`, and `_deadline` is crucial for correct usage.
-    */
+     * @notice Creates a sell order for a specific NFT.
+     * @param _nftAddress The address of the NFT contract.
+     * @param _tokenId The ID of the NFT token to be listed for sale.
+     * @param _price The price at which the NFT is listed for sale.
+     * @param _deadline The deadline for accepting the offer.     
+     * @dev Ensure that the price is greater than zero, the deadline 
+     * is later than 'block.timestamo', and the sender is the owner of the NFT. 
+     * Being mindful of the bit packing in uint variables like 
+     * `_tokenId`, `_price`, and `_deadline` is crucial for correct usage.
+     * Emits a `SellOfferCreated` event with details of the accepted offer.
+     */
     function createSellOrder(
         address _nftAddress,
         uint48 _tokenId,
@@ -126,19 +133,21 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     }    
 
     /**
-    * @notice Accepts a sell offer for a specific NFT.
-    * @param _offerId The unique identifier of the sell offer.
-    * @dev This function transfers the NFT to the buyer and the payment to the seller.
-    * It also updates the state of the sell offer to mark it as accepted.
-    * The caller must ensure that the offer is still active and the payment is correct.
-    * Emits a `SellOfferAccepted` event with details of the accepted offer.
-    */   
+     * @notice Accepts a sell offer for a specific NFT.
+     * @param _offerId The unique identifier of the sell offer.
+     * @dev This function transfers the NFT to the buyer and the payment to the seller.
+     * Updates the state of the sell offer to mark it as accepted.
+     * The caller must ensure that the offer is still active, 
+     * that msg.value is equal to the offer's price, 
+     * and that the offer's time has not elapsed.
+     * Emits a `SellOfferAccepted` event with details of the accepted offer.
+     */   
     function acceptSellOffer(uint256 _offerId) external payable {
         Offer memory offer = sellOffers[_offerId];
         IERC721 nft = IERC721(offer.nftAddress); 
+        if (offer.isEnded) revert OfferIsNotActive();
         if (block.timestamp > offer.deadline) revert OutOfTime();        
         if (msg.value != offer.price) revert IncorrectAmount();
-        if (offer.isEnded) revert OfferIsNotActive();
         offer.isEnded = true;
         sellOffers[_offerId] = offer;
         nft.safeTransferFrom(address(this), msg.sender, offer.tokenId);
@@ -147,13 +156,14 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     }
 
     /**
-    * @notice Cancels a sell offer.
-    * @param _offerId The unique identifier of the sell offer.
-    * @dev This function allows the offerer to cancel a sell offer 
-    * and retrieve their NFT if the conditions are met.
-    * The offer must not be already ended, the sender must be the owner of the offer, 
-    * and the offer must still be within the specified deadline.
-    */    
+     * @notice Cancels a sell offer.
+     * @dev This function allows the offerer to cancel a sell offer 
+     * and retrieve their NFT if the conditions are met.
+     * The offer must not be already accepted, the sender must be the owner of the offer, 
+     * and the deadline must have elapsed.
+     * @param _offerId The unique identifier of the sell offer.
+     * Emits a `SellOfferCancelled` event with details of the accepted offer.
+     */    
     function cancelSellOffer(uint256 _offerId) external {
         Offer memory offer = sellOffers[_offerId];
         IERC721 nft = IERC721(offer.nftAddress);
@@ -167,13 +177,17 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     }
 
     /**
-    * @notice Creates a buy offer for a specific NFT.
-    * @param _nftAddress The address of the NFT contract.
-    * @param _tokenId The ID of the NFT.
-    * @param _deadline The deadline for the offer in seconds since the epoch.
-    * @dev Being mindful of the bit packing in uint variables like 
-    * `_tokenId`, and `_deadline` is crucial for correct usage.
-    */    
+     * @notice Creates a buy offer for a specific NFT.
+     * The caller must deposit the ETH of the offer.
+     * Ensure thet 'msg.value' is greater than zero, 
+     * and the deadline is later than 'block.timestamp'.
+     * @param _nftAddress The address of the NFT contract.
+     * @param _tokenId The ID of the NFT.
+     * @param _deadline The deadline for the offer in seconds since the epoch.
+     * @dev Being mindful of the bit packing in uint variables like 
+     * `_tokenId`, and `_deadline` is crucial for correct usage.
+     * Emits a `BuyOfferCreated` event with details of the accepted offer.
+     */    
     function createBuyOffer(
         address _nftAddress,
         uint48 _tokenId,
@@ -193,13 +207,15 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
         }
         emit BuyOfferCreated(offerId, offer);   
     }
-    
+
     /**
-    * @notice Accepts a buy offer for a specific NFT.
-    * @param _offerId The unique identifier of the buy offer.
-    * @dev Allows the seller to accept a buy offer, transferring the NFT to the buyer
-    * and the payment to the seller.
-    */
+     * @notice Accepts a buy offer for a specific NFT.
+     * Allows the seller to accept a buy offer, transferring the NFT to the buyer
+     * and the payment to the seller. The caller must be the owner of the NFT,
+     * ensure that the offer is still active, and that the offer's time has not elapsed.
+     * @param _offerId The unique identifier of the buy offer.
+     * Emits a `BuyOfferAccepted` event with details of the accepted offer.
+     */
     function acceptBuyOffer(uint256 _offerId) external {
         Offer memory offer = buyOffers[_offerId];
         IERC721 nft = IERC721(offer.nftAddress);
@@ -215,12 +231,13 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     }
     
     /**
-    * @notice Cancels a buy offer.
-    * @param _offerId The unique identifier of the buy offer.
-    * @dev Allows the offerer to cancel a buy offer and retrieve their funds
-    * if the conditions are met. The offer must not be already ended, the sender
-    * must be the owner of the offer, and the offer must still be within the specified deadline.
-    */
+     * @notice Cancels a buy offer.
+     * Allows the offerer to cancel a buy offer and retrieve their funds
+     * if the conditions are met. The offer must not be already accepted, the sender
+     * must be the owner of the offer, and the offer's time must have elapsed.
+     * @param _offerId The unique identifier of the buy offer.
+     * Emits a `BuyOfferCancelled(` event with details of the accepted offer.
+     */
     function cancelBuyOffer(uint256 _offerId) external {
         Offer memory offer = buyOffers[_offerId];
         if (offer.isEnded) revert OfferIsNotActive();
@@ -233,9 +250,9 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     }
 
     /**
-    * @dev External function to handle ERC721 token received.
-    * @return The ERC721 receiver function selector.
-    */
+     * @dev External function to handle ERC721 token received.
+     * @return The ERC721 receiver function selector.
+     */
     function onERC721Received(
         address operator,
         address from,
@@ -250,13 +267,13 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     ///////////////////////////////////////////////////////////    
 
     /**
-    * @dev Internal function to authorize an upgrade to a new implementation.
-    * @param newImplementation The address of the new implementation.
-    * @dev Restricts the authorization to the proxy owner (onlyProxy) and the admin.
-    */
+     * @dev Internal function to authorize an upgrade to a new implementation.
+     * @param newImplementation The address of the new implementation.
+     * @dev Restricts the authorization to the admin.
+     */
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyProxy onlyAdmin {
+    ) internal override onlyAdmin {
 
     }
 

@@ -83,19 +83,25 @@ contract NftMarketplaceV1Test is Test {
 
 
     function setUp() public {
+        // Address creation for Alice, Bob, Jack.
         alice = makeAddr("alice");
         bob = makeAddr("bob"); 
         jack = makeAddr("jack");
-
+        // Give ETH to Bob and Jack
         vm.deal(bob, 2 ** 160 -1 wei);
         vm.deal(jack, 2 ** 160 -1 wei);
-
+        // Deploy an NFT contract for testing the NftMarketplace
+        // and give 10 NFT to Alice and 1 NFT to Bob.
         poket = new Poket("Poket", "pkt", alice, bob);
-        aNft = address(poket);
+        // Deploy NftMarketplace contract.
         nftMarketplaceV1 = new NftMarketplaceV1();
-        aMarket = address(nftMarketplaceV1);
+        //Save the signature of the 'initialize' function.
         bytes memory data = abi.encodeWithSignature("initialize(string)", "NftMarketplaceV1");
+        // Deploy the Proxy and initialize the implementation NftMarketplace.
         proxyMarketplace = new ProxyMarketplace(address(nftMarketplaceV1), data);
+        // Convert variables from contract variables to address variables.
+        aMarket = address(nftMarketplaceV1);
+        aNft = address(poket);
         aProxy = address(proxyMarketplace);
     }
 
@@ -491,6 +497,20 @@ contract NftMarketplaceV1Test is Test {
         assertEq(jack.balance, jackBalance + amount);
         // Check that marketplace's balance has decreassed by amount.
         assertEq(aProxy.balance, marketplaceBalance - amount);
+    }
+
+    function test_AuthorizeUpgrade() public {
+        vm.prank(jack);
+        vm.expectRevert(NftMarketplaceV1.OnlyAdmin.selector);
+        (bool ok, ) = aProxy.call(abi.encodeWithSignature(
+            "upgradeToAndCall(address,bytes)", address(nftMarketplaceV1), "")
+        );
+        require(ok, "");
+        (bool ok1, ) = aProxy.call(abi.encodeWithSignature(
+            "upgradeToAndCall(address,bytes)", address(nftMarketplaceV1), "")
+        );
+        require(ok1, "");
+
     }
 
 
