@@ -78,6 +78,10 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     ///                INITILIZE FUNCTION                   ///
     ///////////////////////////////////////////////////////////    
 
+    /**
+     * @dev Initialize the contract with the specified marketplace name.
+     * Assign the sender's address as the admin.
+     */
     function initialize(string calldata _marketplaceName) external onlyProxy {
         marketplaceName = _marketplaceName;
         admin = msg.sender;
@@ -87,6 +91,9 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     ///                     MODIFIERS                       ///
     ///////////////////////////////////////////////////////////
 
+    /**
+     * @notice Restricts access to functions to only the designated admin.
+     */
     modifier onlyAdmin {
         if (msg.sender != admin) revert OnlyAdmin();
         _;
@@ -126,7 +133,7 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
         offer.deadline = _deadline;
         offer.offerer = msg.sender;
         unchecked {
-            sellOfferIdCounter++;
+            sellOfferIdCounter = offerId + 1;
         }
         nft.safeTransferFrom(msg.sender, address(this), _tokenId);
         emit SellOfferCreated(offerId, offer);   
@@ -203,7 +210,7 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
         offer.deadline = _deadline;
         offer.offerer = msg.sender;
         unchecked {
-            buyOfferIdCounter++;
+            buyOfferIdCounter = offerId + 1;
         }
         emit BuyOfferCreated(offerId, offer);   
     }
@@ -254,10 +261,10 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
      * @return The ERC721 receiver function selector.
      */
     function onERC721Received(
-        address operator,
-        address from,
-        uint256 tokenId,
-        bytes calldata data
+        address,
+        address,
+        uint256,
+        bytes memory
     ) external returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
@@ -277,6 +284,6 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
 
     }
 
-
+    receive() external payable {}
 
 }               

@@ -16,28 +16,33 @@ interface IMarketplace {
         uint128 _price,
         uint48 _deadline
     ) external;
-    
-    function sellOffers(
-        uint256 _offerId
-    ) external view returns(uint48,uint48,address,uint128,address,bool);
-    function buyOffers(
-        uint256 _offerId
-    ) external view returns(uint48,uint48,address,uint128,address,bool);
+
     function createBuyOffer(
         address _nftAddress, 
         uint48 _tokenId, 
         uint48 _deadline
     ) external payable;
-    function cancelSellOffer(uint256 _offerId) external;
-    function acceptSellOffer(uint256 _offerId) external payable;
-    function acceptBuyOffer(uint256 _offerId) external;
-    function cancelBuyOffer(uint256 _offerId) external;
+
     function onERC721Received(
         address operator,
         address from,
         uint256 tokenId,
         bytes calldata data
     ) external returns (bytes4);
+    
+    function sellOffers(
+        uint256 _offerId
+    ) external view returns(uint48,uint48,address,uint128,address,bool);
+    
+    function buyOffers(
+        uint256 _offerId
+    ) external view returns(uint48,uint48,address,uint128,address,bool);
+    
+    function cancelSellOffer(uint256 _offerId) external;
+    function acceptSellOffer(uint256 _offerId) external payable;
+    function acceptBuyOffer(uint256 _offerId) external;
+    function cancelBuyOffer(uint256 _offerId) external;
+    
 }
 
 
