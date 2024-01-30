@@ -500,12 +500,14 @@ contract NftMarketplaceV1Test is Test {
     }
 
     function test_AuthorizeUpgrade() public {
+        // If someone tries to upgrade the proxy to a new implementation and is not the administrator, it will revert.
         vm.prank(jack);
         vm.expectRevert(NftMarketplaceV1.OnlyAdmin.selector);
         (bool ok, ) = aProxy.call(abi.encodeWithSignature(
             "upgradeToAndCall(address,bytes)", address(nftMarketplaceV1), "")
         );
         require(ok, "");
+        // The administrator calls 2upgradeToAndCall' function.
         (bool ok1, ) = aProxy.call(abi.encodeWithSignature(
             "upgradeToAndCall(address,bytes)", address(nftMarketplaceV1), "")
         );
