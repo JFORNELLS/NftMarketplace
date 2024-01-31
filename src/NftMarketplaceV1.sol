@@ -58,20 +58,27 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     ///                     STORAGE                         ///
     ///////////////////////////////////////////////////////////
 
+    /// @notice Struct defining an offer for buying or selling an NFT on the marketplace.
     struct Offer {
-        uint48 tokenId;   
-        uint48 deadline;            
-        address nftAddress;
-        uint128 price;
-        address offerer;
-        bool isEnded;            
+        uint48 tokenId;       // Unique identifier of the NFT.
+        uint48 deadline;      // Deadline for the offer to be valid.
+        address nftAddress;   // Address of the NFT contract.
+        uint128 price;        // Price of the NFT in wei.
+        address offerer;      // Address of the user making the offer.
+        bool isEnded;         // Flag indicating if the offer has accepted or cancelled.
     } 
 
+    /// @notice Name of the marketplace.
     string public marketplaceName;
+    /// @notice Address of the marketplace administrator.
     address public admin;
+    /// @notice Counter for sell offer IDs.
     uint256 sellOfferIdCounter;
+    /// @notice Counter for buy offer IDs.
     uint256 buyOfferIdCounter;
+    /// @notice Mapping of sell offers by their unique IDs.
     mapping(uint256 => Offer) public sellOffers;
+    /// @notice Mapping of buy offers by their unique IDs.
     mapping(uint256 => Offer) public buyOffers;
 
     ///////////////////////////////////////////////////////////
@@ -123,9 +130,11 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     ) external {
         uint256 offerId = sellOfferIdCounter;
         IERC721 nft = IERC721(_nftAddress);
+
         if (_price == 0) revert PriceCannotBeZero();
         if (_deadline <= block.timestamp) revert InvalidDeadline();
         if (nft.ownerOf(_tokenId) != msg.sender) revert NotTheOwner();
+
         Offer storage offer = sellOffers[offerId];
         offer.nftAddress = _nftAddress;
         offer.tokenId = _tokenId;
@@ -136,6 +145,7 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
             sellOfferIdCounter = offerId + 1;
         }
         nft.safeTransferFrom(msg.sender, address(this), _tokenId);
+
         emit SellOfferCreated(offerId, offer);   
     }    
 
@@ -152,13 +162,17 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     function acceptSellOffer(uint256 _offerId) external payable {
         Offer memory offer = sellOffers[_offerId];
         IERC721 nft = IERC721(offer.nftAddress); 
+
         if (offer.isEnded) revert OfferIsNotActive();
         if (block.timestamp > offer.deadline) revert OutOfTime();        
         if (msg.value != offer.price) revert IncorrectAmount();
+
         offer.isEnded = true;
         sellOffers[_offerId] = offer;
+
         nft.safeTransferFrom(address(this), msg.sender, offer.tokenId);
         SafeTransferLib.safeTransferETH(offer.offerer, offer.price);
+
         emit SellOfferAccepted(msg.sender, _offerId, offer);
     }
 
@@ -174,12 +188,16 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
     function cancelSellOffer(uint256 _offerId) external {
         Offer memory offer = sellOffers[_offerId];
         IERC721 nft = IERC721(offer.nftAddress);
+
         if (offer.isEnded) revert OfferIsNotActive();
         if (offer.offerer != msg.sender) revert NotTheOwner();
         if (offer.deadline > block.timestamp) revert OfferIsInTime();
+
         offer.isEnded = true;
         sellOffers[_offerId] = offer;
+
         nft.safeTransferFrom(address(this), msg.sender, offer.tokenId);
+        
         emit SellOfferCancelled(_offerId, offer);
     }
 
@@ -201,8 +219,10 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
         uint48 _deadline
     ) external payable {
         uint256 offerId = buyOfferIdCounter;
+
         if (msg.value == 0) revert PriceCannotBeZero();
         if (_deadline <= block.timestamp) revert InvalidDeadline();
+
         Offer storage offer = buyOffers[offerId];
         offer.nftAddress = _nftAddress;
         offer.tokenId = _tokenId;
@@ -212,6 +232,7 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
         unchecked {
             buyOfferIdCounter = offerId + 1;
         }
+        
         emit BuyOfferCreated(offerId, offer);   
     }
 
@@ -227,13 +248,17 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
         Offer memory offer = buyOffers[_offerId];
         IERC721 nft = IERC721(offer.nftAddress);
         address owner = nft.ownerOf(offer.tokenId);
+
         if (owner != msg.sender) revert NotTheOwner();
         if (offer.isEnded) revert OfferIsNotActive();
         if (offer.deadline < block.timestamp) revert OutOfTime();
+
         offer.isEnded = true;
         buyOffers[_offerId] = offer;
+
         nft.safeTransferFrom(msg.sender, offer.offerer, offer.tokenId);
         SafeTransferLib.safeTransferETH(msg.sender, offer.price);
+
         emit BuyOfferAccepted(msg.sender, _offerId, offer);        
     }
     
@@ -247,12 +272,16 @@ contract NftMarketplaceV1 is UUPSUpgradeable {
      */
     function cancelBuyOffer(uint256 _offerId) external {
         Offer memory offer = buyOffers[_offerId];
+
         if (offer.isEnded) revert OfferIsNotActive();
         if (offer.offerer != msg.sender) revert NotTheOwner();
         if (offer.deadline > block.timestamp) revert OfferIsInTime();
+
         offer.isEnded = true;
         buyOffers[_offerId] = offer;
+
         SafeTransferLib.safeTransferETH(msg.sender, offer.price);
+
         emit BuyOfferCancelled(_offerId, offer);
     }
 
